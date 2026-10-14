@@ -1,0 +1,7 @@
+**/perfil/
+**/Cache/
+**/Cache_Data/
+*.pyc
+__pycache__/
+.env
+.env.*
