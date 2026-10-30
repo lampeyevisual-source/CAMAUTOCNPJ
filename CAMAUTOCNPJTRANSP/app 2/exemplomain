@@ -1,0 +1,581 @@
+from fretebras import abrir_fretebras, capturar_fretes
+
+import random
+import time
+
+
+ARQUIVO_PROCESSADOS = "data/processados.txt"
+
+
+# =========================
+# TIMER
+# =========================
+
+def iniciar_timer():
+
+    return time.time()
+
+
+def finalizar_timer(
+    nome_acao,
+    inicio
+):
+
+    tempo = round(
+        time.time() - inicio,
+        2
+    )
+
+    print(
+        f"[TEMPO] {nome_acao}: {tempo}s"
+    )
+
+
+# =========================
+# CARREGA PROCESSADOS
+# =========================
+
+def carregar_processados():
+
+    try:
+
+        with open(
+            ARQUIVO_PROCESSADOS,
+            "r",
+            encoding="utf-8"
+        ) as arquivo:
+
+            return set(
+                linha.strip()
+                for linha in arquivo.readlines()
+            )
+
+    except:
+
+        return set()
+
+
+# =========================
+# SALVA PROCESSADO
+# =========================
+
+def salvar_processado(
+    link,
+    nome,
+    transportadora
+):
+
+    with open(
+        ARQUIVO_PROCESSADOS,
+        "a",
+        encoding="utf-8"
+    ) as arquivo:
+
+        arquivo.write(
+            f"{link} | "
+            f"{nome} | "
+            f"{transportadora}\n"
+        )
+
+
+# =========================
+# LIMPA LINK
+# =========================
+
+def limpar_link(link):
+
+    if "&text=" in link:
+
+        return link.split("&text=")[0]
+
+    return link
+
+
+# =========================
+# ABRE FRETEBRAS
+# =========================
+
+inicio_sistema = iniciar_timer()
+
+playwright, context, page = abrir_fretebras()
+
+finalizar_timer(
+    "Abrir Fretebras",
+    inicio_sistema
+)
+
+
+# =========================
+# CONTADOR
+# =========================
+
+mensagens_enviadas = 0
+
+
+# =========================
+# LOOP PRINCIPAL
+# =========================
+
+while True:
+
+    ciclo_inicio = iniciar_timer()
+
+    try:
+
+        print("\n===================================")
+        print("NOVO CICLO")
+        print("===================================\n")
+
+        # =========================
+        # ATUALIZA FRETES
+        # =========================
+
+        etapa_inicio = iniciar_timer()
+
+        print("Atualizando fretes...")
+
+        page.goto(
+            "https://www.fretebras.com.br/fretes",
+            wait_until="domcontentloaded",
+            timeout=60000
+        )
+
+        page.wait_for_timeout(
+            random.randint(
+                2000,
+                4000
+            )
+        )
+
+        finalizar_timer(
+            "Atualizar fretes",
+            etapa_inicio
+        )
+
+        # =========================
+        # PROCESSADOS
+        # =========================
+
+        processados = carregar_processados()
+
+        # =========================
+        # CAPTURA FRETE
+        # =========================
+
+        etapa_inicio = iniciar_timer()
+
+        dados = capturar_fretes(page)
+
+        finalizar_timer(
+            "Capturar frete",
+            etapa_inicio
+        )
+
+        # =========================
+        # SEM DADOS
+        # =========================
+
+        if not dados:
+
+            print(
+                "\nNenhum WhatsApp encontrado."
+            )
+
+            espera = random.randint(
+                5000,
+                10000
+            )
+
+            print(
+                f"Aguardando "
+                f"{espera/1000:.0f}s..."
+            )
+
+            page.wait_for_timeout(
+                espera
+            )
+
+            continue
+
+        # =========================
+        # RECEBE DADOS
+        # =========================
+
+        link = dados["link"]
+
+        nome = dados["nome"]
+
+        transportadora = dados[
+            "transportadora"
+        ]
+
+        # =========================
+        # LIMPA LINK
+        # =========================
+
+        link_limpo = limpar_link(link)
+
+        # =========================
+        # VERIFICA PROCESSADO
+        # =========================
+
+        if any(
+            link_limpo in linha
+            for linha in processados
+        ):
+
+            print(
+                "\nContato já processado."
+            )
+
+            page.wait_for_timeout(
+                random.randint(
+                    3000,
+                    7000
+                )
+            )
+
+            continue
+
+        # =========================
+        # LOGS
+        # =========================
+
+        print("\n====================")
+        print("NOVO CONTATO")
+        print("====================")
+
+        print(
+            f"Nome: "
+            f"{nome}"
+        )
+
+        print(
+            f"Transportadora: "
+            f"{transportadora}"
+        )
+
+        print(
+            f"WhatsApp: "
+            f"{link_limpo}"
+        )
+
+        # =========================
+        # EXTRAI NÚMERO
+        # =========================
+
+        numero = (
+            link
+            .replace("tel:", "")
+            .replace(
+                "https://api.whatsapp.com/send/?phone=",
+                ""
+            )
+            .strip()
+        )
+
+        if not numero.startswith("55"):
+
+            numero = "55" + numero
+
+        # =========================
+        # LINK WHATSAPP
+        # =========================
+
+        link_whatsapp = (
+            "https://web.whatsapp.com/send?"
+            f"phone={numero}"
+        )
+
+        # =========================
+        # ABRE WHATSAPP
+        # =========================
+
+        etapa_inicio = iniciar_timer()
+
+        pagina_whatsapp = (
+            context.new_page()
+        )
+
+        print(
+            "\nAbrindo WhatsApp..."
+        )
+
+        pagina_whatsapp.goto(
+            link_whatsapp,
+            wait_until="domcontentloaded",
+            timeout=30000
+        )
+
+        finalizar_timer(
+            "Abrir WhatsApp",
+            etapa_inicio
+        )
+
+        # =========================
+        # TEMPO TOTAL
+        # =========================
+
+        tempo_ate_whatsapp = round(
+            time.time() - ciclo_inicio,
+            2
+        )
+
+        print(
+            f"\n[TEMPO TOTAL "
+            f"ATÉ WHATSAPP]: "
+            f"{tempo_ate_whatsapp}s"
+        )
+
+        # =========================
+        # TEMPO HUMANO
+        # =========================
+
+        tempo_total_whatsapp = (
+            random.randint(50, 90)
+        )
+
+        print(
+            f"\nTempo humano "
+            f"no WhatsApp: "
+            f"{tempo_total_whatsapp}s"
+        )
+
+        inicio_whatsapp = time.time()
+
+        # =========================
+        # PRIMEIRA LEITURA
+        # =========================
+
+        tempo_leitura_1 = (
+            random.randint(8, 15)
+        )
+
+        print(
+            f"Lendo conversa "
+            f"({tempo_leitura_1}s)..."
+        )
+
+        pagina_whatsapp.wait_for_timeout(
+            tempo_leitura_1 * 1000
+        )
+
+        # =========================
+        # FOCA CAMPO
+        # =========================
+
+        print(
+            "Focando campo..."
+        )
+
+        caixa = pagina_whatsapp.locator(
+            'footer div[contenteditable="true"]'
+        ).first
+
+        caixa.focus()
+
+        pagina_whatsapp.wait_for_timeout(
+            random.randint(
+                2000,
+                5000
+            )
+        )
+
+        # =========================
+        # SEGUNDA LEITURA
+        # =========================
+
+        tempo_leitura_2 = (
+            random.randint(10, 20)
+        )
+
+        print(
+            f"Analisando conversa "
+            f"({tempo_leitura_2}s)..."
+        )
+
+        pagina_whatsapp.wait_for_timeout(
+            tempo_leitura_2 * 1000
+        )
+
+        # =========================
+        # PAUSA HUMANA
+        # =========================
+
+        tempo_pausa = random.randint(
+            5,
+            12
+        )
+
+        print(
+            f"Pausa humana "
+            f"({tempo_pausa}s)..."
+        )
+
+        pagina_whatsapp.wait_for_timeout(
+            tempo_pausa * 1000
+        )
+
+        # =========================
+        # AJUSTE FINAL
+        # =========================
+
+        tempo_passado = (
+            time.time() - inicio_whatsapp
+        )
+
+        tempo_restante = (
+            tempo_total_whatsapp
+            - tempo_passado
+        )
+
+        if tempo_restante > 0:
+
+            print(
+                f"Finalizando leitura "
+                f"({round(tempo_restante)}s)..."
+            )
+
+            pagina_whatsapp.wait_for_timeout(
+                int(
+                    tempo_restante * 1000
+                )
+            )
+
+        # =========================
+        # ENVIA
+        # =========================
+
+        envio_inicio = iniciar_timer()
+
+        print(
+            "\nEnviando mensagem..."
+        )
+
+        pagina_whatsapp.keyboard.press(
+            "Enter"
+        )
+
+        finalizar_timer(
+            "Enviar mensagem",
+            envio_inicio
+        )
+
+        print(
+            "\nMensagem enviada!"
+        )
+
+        mensagens_enviadas += 1
+
+        print(
+            f"\nTotal enviadas: "
+            f"{mensagens_enviadas}"
+        )
+
+        # =========================
+        # PÓS ENVIO
+        # =========================
+
+        tempo_pos = random.randint(
+            5,
+            12
+        )
+
+        print(
+            f"\nAguardando pós envio "
+            f"({tempo_pos}s)..."
+        )
+
+        pagina_whatsapp.wait_for_timeout(
+            tempo_pos * 1000
+        )
+
+        # =========================
+        # SALVA PROCESSADO
+        # =========================
+
+        salvar_processado(
+            link_limpo,
+            nome,
+            transportadora
+        )
+
+        print(
+            "\nContato salvo "
+            "em processados.txt"
+        )
+
+        # =========================
+        # FECHA ABA
+        # =========================
+
+        pagina_whatsapp.close()
+
+        # =========================
+        # DESCANSO
+        # =========================
+
+        if mensagens_enviadas % 10 == 0:
+
+            pausa_descanso = (
+                random.randint(
+                    180,
+                    420
+                )
+            )
+
+            print(
+                f"\nPausa descanso "
+                f"({pausa_descanso}s)..."
+            )
+
+            page.wait_for_timeout(
+                pausa_descanso * 1000
+            )
+
+        # =========================
+        # PRÓXIMO CICLO
+        # =========================
+
+        tempo_proximo = random.randint(
+            10,
+            25
+        )
+
+        print(
+            f"\nPróximo ciclo em "
+            f"{tempo_proximo}s..."
+        )
+
+        page.wait_for_timeout(
+            tempo_proximo * 1000
+        )
+
+        finalizar_timer(
+            "TEMPO TOTAL DO CICLO",
+            ciclo_inicio
+        )
+
+    except Exception as e:
+
+        print("\nErro no sistema:")
+        print(e)
+
+        finalizar_timer(
+            "Ciclo com erro",
+            ciclo_inicio
+        )
+
+        tempo_erro = random.randint(
+            5,
+            12
+        )
+
+        print(
+            f"\nTentando novamente "
+            f"em {tempo_erro}s..."
+        )
+
+        page.wait_for_timeout(
+            tempo_erro * 1000
+        )

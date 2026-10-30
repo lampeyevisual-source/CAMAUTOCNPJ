@@ -1,0 +1,152 @@
+new Set();
+
+const lista = document.querySelector('[data-testid="contacts-modal"]');
+
+if (!lista) {
+    console.log("Abra a janela de participantes primeiro.");
+} else {
+    const elementos = [lista, ...lista.querySelectorAll("*")];
+
+    const areaRolavel = elementos
+        .filter(el =>
+            el.scrollHeight > el.clientHeight + 50 &&
+            el.clientHeight > 100
+        )
+        .sort((a, b) =>
+            (b.scrollHeight - b.clientHeight) -
+            (a.scrollHeight - a.clientHeight)
+        )[0];
+
+    if (!areaRolavel) {
+        console.log("Área de rolagem não encontrada.");
+    } else {
+        clearInterval(window.timerRolagem);
+
+        const extrairNumeros = () => {
+            const participantes = lista.querySelectorAll(
+                '[data-testid="cell-frame-container"]'
+            );
+
+            participantes.forEach(item => {
+                const textos = [
+                    item.innerText || "",
+                    ...item.querySelectorAll("[title]")
+                ].flatMap(el =>
+                    el instanceof Element
+                        ? [el.getAttribute("title") || ""]
+                        : [el]
+                );
+
+                textos.forEach(texto => {
+                    const encontrados = texto.match(
+                        /\+55\s*\(?\d{2}\)?\s*\d{4,5}[- ]?\d{4}/g
+                    );
+
+                    if (encontrados) {
+                        encontrados.forEach(numero => {
+                            window.numerosWhatsApp.add(
+                                numero.replace(/\s+/g, " ").trim()
+                            );
+                        });
+                    }
+                });
+            });
+        };
+
+        let ciclosSemNovos = 0;
+        let totalAnterior = window.numerosWhatsApp.size;
+
+        window.timerRolagem = setInterval(() => {
+            extrairNumeros();
+
+            const totalAtual = window.numerosWhatsApp.size;
+
+            if (totalAtual === totalAnterior) {
+                ciclosSemNovos++;
+            } else {
+                ciclosSemNovos = 0;
+            }
+
+            totalAnterior = totalAtual;
+
+            const chegouAoFinal =
+                areaRolavel.scrollTop + areaRolavel.clientHeight >=
+                areaRolavel.scrollHeight - 5;
+
+            console.log("Números únicos encontrados:", totalAtual);
+
+            if (chegouAoFinal && ciclosSemNovos >= 8) {
+                clearInterval(window.timerRolagem);
+                window.timerRolagem = null;
+                extrairNumeros();
+
+                console.log(
+                    "Coleta encerrada. Total:",
+                    window.numerosWhatsApp.size
+                );
+            } else {
+                areaRolavel.scrollTop += Math.max(
+                    150,
+                    Math.floor(areaRolavel.clientHeight * 0.5)
+                );
+            }
+        }, 1200);
+
+        console.log("Nova coleta iniciada.");
+    }
+}
+
+
+
+clearInterval(window.timerRolagem);
+window.timerRolagem = null;
+
+console.log("Rolagem interrompida.");
+console.log("Total de números coletados:", window.numerosWhatsApp.size);
+
+
+
+clearInterval(window.timerRolagem);
+window.timerRolagem = null;
+
+window.numerosWhatsApp.clear();
+
+console.log("Rolagem interrompida.");
+console.log("Números apagados da memória.");
+console.log("Total restante:", window.numerosWhatsApp.size);
+
+
+var listaCAM503 = [...window.numerosWhatsApp];
+
+console.log("TOTAL DE NÚMEROS:", listaCAM503.length);
+
+for (var blocoCAM = 0; blocoCAM < listaCAM503.length; blocoCAM += 50) {
+    console.log(
+        "\n===== BLOCO " +
+        (Math.floor(blocoCAM / 50) + 1) +
+        " =====\n" +
+        listaCAM503.slice(blocoCAM, blocoCAM + 50).join("\n")
+    );
+}
+
+
+
+
+(() => {
+    const links = new Set();
+
+    document.querySelectorAll('a[href]').forEach(a => {
+        const href = a.href;
+
+        if (/^https?:\/\/chat\.whatsapp\.com\/[A-Za-z0-9_-]+/i.test(href)) {
+            links.add(href.split('?')[0]);
+        }
+    });
+
+    const resultado = [...links];
+
+    console.log("Total de convites encontrados:", resultado.length);
+    console.log(resultado.join("\n"));
+
+    return resultado;
+})();

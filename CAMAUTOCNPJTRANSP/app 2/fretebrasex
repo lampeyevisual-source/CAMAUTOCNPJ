@@ -1,0 +1,428 @@
+from playwright.sync_api import sync_playwright
+
+
+def abrir_fretebras():
+
+    playwright = sync_playwright().start()
+
+    context = playwright.chromium.launch_persistent_context(
+        user_data_dir="perfil",
+        headless=False,
+
+        args=[
+            "--start-maximized",
+            "--disable-blink-features=AutomationControlled"
+        ],
+
+        no_viewport=True
+    )
+
+    page = (
+        context.pages[0]
+        if context.pages
+        else context.new_page()
+    )
+
+    page.goto(
+        "https://www.fretebras.com.br/fretes/carga-de-mt/carroceria-cacamba",
+        wait_until="domcontentloaded",
+        timeout=120000
+    )
+
+    page.wait_for_timeout(5000)
+
+    print("\nFretebras carregado!")
+
+    return playwright, context, page
+
+
+def extrair_transportadora(url_frete):
+
+    """
+    EXEMPLO URL:
+
+    https://www.fretebras.com.br/frete/
+    cerro-azul-transportes/
+    carga-de-sao-jose...
+
+    A TRANSPORTADORA SEMPRE FICA
+    ENTRE:
+
+    /frete/
+    E A PRÓXIMA "/"
+    """
+
+    try:
+
+        if "/frete/" not in url_frete:
+
+            return "N/A"
+
+        # =====================================
+        # PEGA TEXTO APÓS /frete/
+        # =====================================
+
+        parte = url_frete.split(
+            "/frete/"
+        )[1]
+
+        # =====================================
+        # PEGA SOMENTE A PRIMEIRA PARTE
+        # =====================================
+
+        slug_transportadora = (
+            parte.split("/")[0]
+        )
+
+        # =====================================
+        # FORMATA TEXTO
+        # =====================================
+
+        transportadora = (
+            slug_transportadora
+            .replace("-", " ")
+            .title()
+            .strip()
+        )
+
+        return transportadora
+
+    except Exception as erro:
+
+        print(
+            "\nErro ao extrair transportadora:"
+        )
+
+        print(erro)
+
+        return "N/A"
+
+
+def capturar_fretes(page):
+
+
+    # =====================================
+    # CLASSIFICA FRETES
+    # =====================================
+
+    print(
+        "\nClassificando fretes..."
+    )
+
+    try:
+
+        filtro_granel = page.locator(
+            '#__next > main > div > fuel-grid-container > fuel-grid-item.sc-fuel-grid-item-h.sc-fuel-grid-item-s.grid-item.sm-4.md-3.lg-3.xlg-3.hydrated > aside > div:nth-child(4) > div:nth-child(2) > div:nth-child(5) > fuel-checkbox'
+        ).first
+
+        filtro_granel.click(
+            force=True
+        )
+
+        page.wait_for_timeout(3000)
+
+        print(
+            "Filtro GRANEL aplicado!"
+        )
+
+    except Exception as e:
+
+        print(
+            "\nErro ao aplicar filtro:"
+        )
+
+        print(e)
+
+
+    # =====================================
+    # CLASSIFICA ORIGEM
+    # =====================================
+
+    print(
+        "\nClassificando fretes..."
+    )
+
+    try:
+
+        filtro_origem = page.locator(
+           ' " <div class="text-field__wrapper"><span class="text-field__adornment text-field__adornment--suffix"><slot name="suffix"></slot></span><input part="input" class="text-field__input" id="fuel-input" placeholder="Escolha sua origem" inputmode="search" type="text" autocomplete="off"></div>"></div>')
+        
+
+        filtro_origem.click(
+            force=True
+        )
+
+        page.wait_for_timeout(1000)
+
+        filtro_origem.fill(
+            "Mato Grosso"
+        )
+
+        page.wait_for_timeout(1000)
+
+        filtro_origem.press(
+            "Enter"
+        )
+
+        print(
+            "Filtro ORIGEM aplicado!"
+        )
+
+    except Exception as e:
+
+        print(
+            "\nErro ao aplicar filtro:"
+        )
+
+        print(e)
+
+    # =====================================
+    # CAPTURA CARDS
+    # =====================================
+
+    cards = page.locator(
+        "section"
+    ).all()
+
+    print(
+        f"\nFretes encontrados: "
+        f"{len(cards)}"
+    )
+
+
+    # =====================================
+    # LISTA FRETES
+    # =====================================
+
+    for card in cards[:5]:
+
+        try:
+
+            cidades = card.locator(
+                "h2"
+            ).all_text_contents()
+
+            preco = card.locator(
+                '[data-testid="payment-price"]'
+            ).text_content()
+
+            tags = card.locator(
+                '[data-testid="chips"]'
+            ).all_text_contents()
+
+            print("\n====================")
+
+            if len(cidades) >= 2:
+
+                print(
+                    "Origem:",
+                    cidades[0]
+                )
+
+                print(
+                    "Destino:",
+                    cidades[1]
+                )
+
+            print("Preço:", preco)
+
+            print("Tags:", tags)
+
+        except Exception as e:
+
+            print(
+                "\nErro ao capturar frete:"
+            )
+
+            print(e)
+
+
+    # =====================================
+    # ABRE PRIMEIRO FRETE
+    # =====================================
+
+    print(
+        "\nAbrindo primeiro frete..."
+    )
+
+    cards[0].click(
+        force=True
+    )
+
+    page.wait_for_timeout(5000)
+
+    # =====================================
+    # VALIDA ESPÉCIE DO FRETE
+    # =====================================
+
+    page.wait_for_timeout(2000)
+
+    try:
+
+        especie = page.locator(
+            'span.frete-dados.frete-especie'
+        ).first.text_content().strip()
+
+        print(
+            f"Espécie encontrada: {especie}"
+        )
+
+        if especie != "GRANEL":
+
+            print(
+                "\nFrete ignorado "
+                "(não é GRANEL)."
+            )
+
+            return None
+
+    except Exception as e:
+
+        print(
+            "\nErro ao validar espécie:"
+        )
+
+        print(e)
+
+        return None
+
+    # =====================================
+    # URL DO FRETE
+    # =====================================
+
+    url_frete = page.url
+
+    print("\nURL atual:")
+
+    print(url_frete)
+
+    # =====================================
+    # TRANSPORTADORA
+    # =====================================
+
+    transportadora = (
+        extrair_transportadora(
+            url_frete
+        )
+    )
+
+    print("\nTRANSPORTADORA:")
+
+    print(transportadora)
+
+    # =====================================
+    # ABRE CONTATOS
+    # =====================================
+
+    print("\nAbrindo contatos...")
+
+    page.locator(
+        ".btn-ver-contatos"
+    ).click()
+
+    page.wait_for_timeout(3000)
+
+    contatos = page.locator(
+        "#contacts-whatsapp > div"
+    )
+
+    total = contatos.count()
+
+    print(
+        f"\nContatos encontrados: "
+        f"{total}"
+    )
+
+    for i in range(total):
+
+        try:
+
+            contato = contatos.nth(i)
+
+            # =========================
+            # LINK WHATSAPP
+            # =========================
+
+            link = contato.locator(
+                "a"
+            ).get_attribute(
+                "href"
+            )
+
+            # =========================
+            # NOME CONTATO
+            # =========================
+
+            nome = "N/A"
+
+            try:
+
+                nome_elemento = contato.locator(
+                    ".modal-contacts__name"
+                )
+
+                if nome_elemento.count() > 0:
+
+                    nome = (
+                        nome_elemento
+                        .text_content()
+                        .strip()
+                    )
+
+            except:
+                pass
+
+            # =========================
+            # VALIDA LINK
+            # =========================
+
+            if (
+                link
+                and "whatsapp" in link
+            ):
+
+                print(
+                    "\n===================="
+                )
+
+                print(
+                    "NOME:"
+                )
+
+                print(nome)
+
+                print(
+                    "\nTRANSPORTADORA:"
+                )
+
+                print(
+                    transportadora
+                )
+
+                print(
+                    "\nLINK WHATSAPP:"
+                )
+
+                print(link)
+
+                # =====================
+                # RETORNA AO MAIN
+                # =====================
+
+                return {
+                    "link": link,
+                    "nome": nome,
+                    "transportadora": transportadora,
+                    "url_frete": url_frete
+                }
+
+        except Exception as e:
+
+            print("\nErro contato:")
+
+            print(e)
+
+            pass
+
+    return None
+    
